@@ -7,14 +7,14 @@
 <h4 align="center">A fast, native markdown viewer for macOS and Linux built with <a href="https://v2.tauri.app">Tauri v2</a>, <a href="https://react.dev">React</a>, and <a href="https://github.com/markdown-it/markdown-it">markdown-it</a>. Beautiful rendering of tables, code blocks, task lists, math, and diagrams — with live reload.</h4>
 
 <p align="center">
-    <a href="https://github.com/GRVYDEV/marky/stargazers"><img src="https://img.shields.io/github/stars/GRVYDEV/marky" alt="Stars Badge"/></a>
-    <a href="https://github.com/GRVYDEV/marky/network/members"><img src="https://img.shields.io/github/forks/GRVYDEV/marky" alt="Forks Badge"/></a>
+    <a href="https://github.com/yuki-inaho/marky/stargazers"><img src="https://img.shields.io/github/stars/yuki-inaho/marky" alt="Stars Badge"/></a>
+    <a href="https://github.com/yuki-inaho/marky/network/members"><img src="https://img.shields.io/github/forks/yuki-inaho/marky" alt="Forks Badge"/></a>
 </p>
 
 <p align="center">
   <a href="https://youtu.be/nGBxt8uOVjc">View Demo</a> •
   <a href="#install">Install</a> •
-  <a href="https://github.com/GRVYDEV/marky/issues">Request Features</a>
+  <a href="https://github.com/yuki-inaho/marky/issues">Request Features</a>
 </p>
 
 ![Marky screenshot](assets/marky-img.png)
@@ -81,36 +81,52 @@ xattr -cr /Applications/Marky.app
 
 ### Ubuntu / Debian
 
-Download the `.deb` for your architecture from the [latest release](https://github.com/GRVYDEV/marky/releases/latest):
+Download the `.deb` for your architecture from the [latest release](https://github.com/yuki-inaho/marky/releases/latest):
 
 ```bash
 # amd64
-curl -LO https://github.com/GRVYDEV/marky/releases/latest/download/marky_0.1.2_amd64.deb
-sudo dpkg -i marky_0.1.2_amd64.deb
+curl -LO https://github.com/yuki-inaho/marky/releases/latest/download/marky_0.1.3_amd64.deb
+sudo dpkg -i marky_0.1.3_amd64.deb
 
 # arm64
-curl -LO https://github.com/GRVYDEV/marky/releases/latest/download/marky_0.1.2_arm64.deb
-sudo dpkg -i marky_0.1.2_arm64.deb
+curl -LO https://github.com/yuki-inaho/marky/releases/latest/download/marky_0.1.3_arm64.deb
+sudo dpkg -i marky_0.1.3_arm64.deb
 ```
 
 ### AppImage (Linux)
 
-Download the AppImage from the [latest release](https://github.com/GRVYDEV/marky/releases/latest):
+Download the AppImage from the [latest release](https://github.com/yuki-inaho/marky/releases/latest):
 
 ```bash
-curl -LO https://github.com/GRVYDEV/marky/releases/latest/download/Marky_0.1.2_amd64.AppImage
-chmod +x Marky_0.1.2_amd64.AppImage
-./Marky_0.1.2_amd64.AppImage
+curl -LO https://github.com/yuki-inaho/marky/releases/latest/download/Marky_0.1.3_amd64.AppImage
+chmod +x Marky_0.1.3_amd64.AppImage
+./Marky_0.1.3_amd64.AppImage
 ```
 
-### From Source
+### From Source (official procedure)
 
-Requires [Rust](https://rustup.rs/), [Node.js](https://nodejs.org/), and [pnpm](https://pnpm.io/).
+The release workflow builds Linux artifacts on Ubuntu 22.04, where WebKitGTK 4.1 is available. This is the supported native source-build environment.
 
 ```bash
-git clone https://github.com/GRVYDEV/marky.git
+sudo apt-get update
+sudo apt-get install -y \
+  curl build-essential pkg-config \
+  libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev \
+  librsvg2-dev patchelf xdg-utils
+
+# Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+. "$HOME/.cargo/env"
+
+# Node.js 22+ and pnpm
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo npm install --global pnpm@latest
+
+git clone https://github.com/yuki-inaho/marky.git
 cd marky
 pnpm install
+pnpm approve-builds --all
 pnpm tauri build
 ./scripts/install-cli.sh
 ```
@@ -124,6 +140,57 @@ export PATH="$HOME/.local/bin:$PATH"
 # fish
 set -Ux fish_user_paths $HOME/.local/bin $fish_user_paths
 ```
+
+### Ubuntu 20.04 / Focal
+
+Ubuntu 20.04's system packages provide WebKitGTK 4.0 and GLib 2.64, while the current Marky/Tauri source uses WebKitGTK 4.1 and GLib 2.70+. A native Focal build is therefore not supported. The tested compatibility route is to install `proot`, build against an Ubuntu 22.04 runtime root, and launch Marky inside that root.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y curl ca-certificates proot tar
+
+# Node.js 22+ and pnpm on the Focal host
+curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+sudo apt-get install -y nodejs
+sudo npm install --global pnpm@latest
+
+ROOTFS="$HOME/.local/share/marky/ubuntu-jammy-rootfs"
+mkdir -p "$ROOTFS"
+curl -L https://partner-images.canonical.com/core/jammy/current/ubuntu-jammy-core-cloudimg-amd64-root.tar.gz \
+  | tar -xz -C "$ROOTFS"
+
+# Install the GUI development/runtime packages in the Jammy root.
+sudo mkdir -p "$ROOTFS/usr/sbin"
+printf '#!/bin/sh\nexit 101\n' | sudo tee "$ROOTFS/usr/sbin/policy-rc.d" >/dev/null
+sudo chmod 755 "$ROOTFS/usr/sbin/policy-rc.d"
+proot -0 -r "$ROOTFS" -b /dev -b /proc -b /sys -b /etc/resolv.conf:/etc/resolv.conf \
+  /bin/sh -lc 'apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
+    build-essential pkg-config libwebkit2gtk-4.1-dev libgtk-3-dev \
+    libappindicator3-dev librsvg2-dev patchelf xdg-utils ca-certificates git'
+
+git clone https://github.com/yuki-inaho/marky.git
+cd marky
+pnpm install
+pnpm approve-builds --all
+pnpm build
+
+# Build Rust on the Focal host while pkg-config/linking use the Jammy root.
+export MARKY_ROOTFS="$ROOTFS"
+export PKG_CONFIG_ALLOW_SYSTEM_CFLAGS=1
+export PKG_CONFIG_SYSROOT_DIR="$ROOTFS"
+export PKG_CONFIG_LIBDIR="$ROOTFS/usr/lib/x86_64-linux-gnu/pkgconfig:$ROOTFS/usr/share/pkgconfig:$ROOTFS/usr/lib/pkgconfig"
+export CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER="$PWD/scripts/cc-rootfs-linker.sh"
+(cd src-tauri && cargo build --release)
+
+cp src-tauri/target/release/marky "$ROOTFS/usr/bin/marky"
+chmod +x "$ROOTFS/usr/bin/marky"
+export WEBKIT_EXEC_PATH=/usr/lib/x86_64-linux-gnu/webkit2gtk-4.1
+export GST_PLUGIN_PATH=/usr/lib/x86_64-linux-gnu/gstreamer-1.0
+proot -0 -r "$ROOTFS" -b /dev -b /proc -b /sys -b /run -b /tmp -b /home:/home \
+  /usr/bin/marky
+```
+
+The repository's release workflow uploads `Marky_<version>_<arch>.AppImage` to the GitHub release. Focal users should use the compatibility procedure above; the standard Ubuntu 22.04 AppImage is not a native Focal binary.
 
 ## Usage
 
