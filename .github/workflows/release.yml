@@ -33,9 +33,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" \
-            --title "Marky ${{ github.ref_name }}" \
-            --notes-file release_notes.md
+          if ! gh release view "${{ github.ref_name }}" >/dev/null 2>&1; then
+            gh release create "${{ github.ref_name }}" \
+              --title "Marky ${{ github.ref_name }}" \
+              --notes-file release_notes.md
+          fi
 
   build-macos:
     needs: [create-release]
